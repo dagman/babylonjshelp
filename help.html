@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+
+        <title>Babylon.js sample code</title>
+
+        <!-- Babylon.js -->
+        <script src="https://code.jquery.com/pep/0.4.2/pep.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/dat-gui/0.6.2/dat.gui.min.js"></script>
+        <script src="https://preview.babylonjs.com/ammo.js"></script>
+        <script src="https://preview.babylonjs.com/cannon.js"></script>
+        <script src="https://preview.babylonjs.com/Oimo.js"></script>
+        <script src="https://preview.babylonjs.com/libktx.js"></script>
+        <script src="https://preview.babylonjs.com/earcut.min.js"></script>
+        <script src="https://preview.babylonjs.com/babylon.js"></script>
+        <script src="https://preview.babylonjs.com/inspector/babylon.inspector.bundle.js"></script>
+        <script src="https://preview.babylonjs.com/materialsLibrary/babylonjs.materials.min.js"></script>
+        <script src="https://preview.babylonjs.com/proceduralTexturesLibrary/babylonjs.proceduralTextures.min.js"></script>
+        <script src="https://preview.babylonjs.com/postProcessesLibrary/babylonjs.postProcess.min.js"></script>
+        <script src="https://preview.babylonjs.com/loaders/babylonjs.loaders.js"></script>
+        <script src="https://preview.babylonjs.com/serializers/babylonjs.serializers.min.js"></script>
+        <script src="https://preview.babylonjs.com/gui/babylon.gui.min.js"></script>
+
+        <style>
+            html, body {
+                overflow: hidden;
+                width: 100%;
+                height: 100%;
+                margin: 0;
+                padding: 0;
+            }
+
+            #renderCanvas {
+                width: 100%;
+                height: 100%;
+                touch-action: none;
+            }
+        </style>
+    </head>
+<body>
+    <canvas id="renderCanvas"></canvas>
+    <script>
+        //https://forum.babylonjs.com/t/mesh-keeps-being-confined-in-the-other-mesh-movewithcollision/3771/5
+        var canvas = document.getElementById("renderCanvas");
+
+        var engine = null;
+        var scene = null;
+        var sceneToRender = null;
+        var createDefaultEngine = function() { return new BABYLON.Engine(canvas, true, { preserveDrawingBuffer: true, stencil: true }); };
+        var isKeyPressed = {};
+        
+        BABYLON.Camera.prototype.moveTo = function (targetPos, speed) {
+            var ease = new BABYLON.CubicEase();
+            ease.setEasingMode(BABYLON.EasingFunction.EASINGMODE_EASEINOUT);
+        	BABYLON.Animation.CreateAndStartAnimation('at1', this, 'position', speed, 120, this.position, targetPos, 0, ease);
+        }  
+        
+        
+        var createScene = function () {
+        	var scene = new BABYLON.Scene(engine);
+            scene.actionManager = new BABYLON.ActionManager(scene);
+            scene.actionManager.registerAction(new BABYLON.ExecuteCodeAction(BABYLON.ActionManager.OnKeyDownTrigger, function (evt) {
+                isKeyPressed[evt.sourceEvent.keyCode] = evt.sourceEvent.type == "keydown";
+            }));
+            scene.actionManager.registerAction(new BABYLON.ExecuteCodeAction(BABYLON.ActionManager.OnKeyUpTrigger, function (evt) {
+                isKeyPressed[evt.sourceEvent.keyCode] = evt.sourceEvent.type == "keydown";
+            }));
+        
+        	var camera = new BABYLON.FreeCamera("characterCam",new BABYLON.Vector3(0,0,0), scene);
+        	camera.attachControl(canvas, true);
+            camera.minZ = .01;
+            camera.keys = [];
+            camera.position = new BABYLON.Vector3(0, 100, 0);
+            camera.checkCollisions = true;
+            console.log(scene.gravity);
+            scene.gravity.y = -1;
+            camera.applyGravity = true;
+            camera._needMoveForGravity = true;
+        
+        	var light = new BABYLON.HemisphericLight("hemi", new BABYLON.Vector3(0, 1, 0), scene);
+        
+            var assetsManager = new BABYLON.AssetsManager(scene);
+            //var meshTask = assetsManager.addMeshTask("taskname", "", "http://localhost/Model/", "room.glb");
+            var meshTask = assetsManager.addMeshTask("taskname", "", "https://raw.githubusercontent.com/dagman/babylonjshelp/master/", "help.glb");
+            meshTask.onSuccess  = function (task) {
+                var rootMesh = task.loadedMeshes;
+                for (var i = 1; i<rootMesh.length; i++){
+                    mesh = rootMesh[i];
+                    // console.log(mesh.name);
+                    if (mesh.name.includes("floor")){
+                        mesh.checkCollisions = true;
+                        // mesh.showBoundingBox = true;
+                        mesh.enableEdgesRendering(.5);    
+                        mesh.edgesWidth = 1.0;
+                        mesh.edgesColor = new BABYLON.Color4(0, 0, 0, 1);
+        
+                        // mesh.showEllipsoid(scene);
+                        //mesh.scaling.x = 15;
+                        //mesh.scaling.z = 15;
+                    }
+                    if (mesh.name.includes("character")){
+                        mesh.setEnabled(false);
+                        // mesh.scaling.x = .3;
+                        // mesh.scaling.z = .3;
+                        // character = mesh;
+                        // character.checkCollisions = true;
+                        // setupCharacter();
+                        // camera.parent = character;
+                    }
+                }
+            }
+            assetsManager.load();
+
+
+        //var glass = BABYLON.MeshBuilder.CreatePlane("glass", {width: 5, height: 5}, scene);
+		//glass.position = new BABYLON.Vector3(10,5, 15);
+		//glass.rotation = new BABYLON.Vector3(0, 1 * Math.PI / 2, 0);
+        
+        //var glass = scene.meshs.getElementById("mirror");
+        //var glass = scene.getMeshByName("mirror");
+        var glass = task.loadedMeshes.getElementById("mirror");
+	
+		//Ensure working with new values for glass by computing and obtaining its worldMatrix
+		glass.computeWorldMatrix(true);
+		var glass_worldMatrix = glass.getWorldMatrix();
+	
+		//Obtain normals for plane and assign one of them as the normal
+  		var glass_vertexData = glass.getVerticesData("normal");
+		var glassNormal = new BABYLON.Vector3(glass_vertexData[0], glass_vertexData[1], glass_vertexData[2]);	
+		//Use worldMatrix to transform normal into its current value
+		glassNormal = new BABYLON.Vector3.TransformNormal(glassNormal, glass_worldMatrix)
+	
+		//Create reflecting surface for mirror surface
+		var reflector = new BABYLON.Plane.FromPositionAndNormal(glass.position, glassNormal.scale(-1));
+
+		//Create the mirror material
+		var mirrorMaterial = new BABYLON.StandardMaterial("mirror", scene);
+		mirrorMaterial.reflectionTexture = new BABYLON.MirrorTexture("mirror", 1024, scene, true);
+		mirrorMaterial.reflectionTexture.mirrorPlane = reflector;
+		mirrorMaterial.reflectionTexture.renderList = scene.meshs;
+		mirrorMaterial.reflectionTexture.level = 1;
+	
+		glass.material = mirrorMaterial;
+
+        
+            // spacebar check.
+            scene.onPreKeyboardObservable.add(function (info) {
+                if(info.event.key == "Spacebar"){
+                     info.event.key = " ";
+                }
+                // console.log(info)
+                if (info.event.key == " " && info.type == 1) {
+                    console.log("spacebar");
+                    // jump.  scene.gravity.y brings us down.
+                    camera.moveTo(camera.position.add(new BABYLON.Vector3(0, 2, 0)), 250);
+                }
+            });
+        
+        	return scene;
+        }
+    var engine;
+    try {
+    engine = createDefaultEngine();
+    } catch(e) {
+    console.log("the available createEngine function failed. Creating the default engine instead");
+    engine = createDefaultEngine();
+    }
+        if (!engine) throw 'engine should not be null.';
+        scene = createScene();;
+        sceneToRender = scene
+
+        engine.runRenderLoop(function () {
+            if (sceneToRender) {
+                sceneToRender.render();
+            }
+        });
+
+        // Resize
+        window.addEventListener("resize", function () {
+            engine.resize();
+        });
+    </script>
+</body>
+</html>
